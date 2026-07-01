@@ -10,6 +10,9 @@ on:
       - '*.c'
       - '*.dts'
       - 'Makefile'
+      - 'dkms.conf'
+      - 'dkms.postinst'
+      - 'setup.sh'
       - '.github/workflows/build-rpi.yml'
   pull_request:
     branches: [main]
@@ -17,6 +20,9 @@ on:
       - '*.c'
       - '*.dts'
       - 'Makefile'
+      - 'dkms.conf'
+      - 'dkms.postinst'
+      - 'setup.sh'
       - '.github/workflows/build-rpi.yml'
   workflow_dispatch:
 
