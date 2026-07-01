@@ -18,6 +18,7 @@ on:
       - '*.dts'
       - 'Makefile'
       - '.github/workflows/build-rpi.yml'
+  workflow_dispatch:
 
 jobs:
   build:
