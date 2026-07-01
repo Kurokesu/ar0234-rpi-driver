@@ -6,24 +6,8 @@ permissions:
 on:
   push:
     branches: [main]
-    paths:
-      - '*.c'
-      - '*.dts'
-      - 'Makefile'
-      - 'dkms.conf'
-      - 'dkms.postinst'
-      - 'setup.sh'
-      - '.github/workflows/build-rpi.yml'
   pull_request:
     branches: [main]
-    paths:
-      - '*.c'
-      - '*.dts'
-      - 'Makefile'
-      - 'dkms.conf'
-      - 'dkms.postinst'
-      - 'setup.sh'
-      - '.github/workflows/build-rpi.yml'
   workflow_dispatch:
 
 jobs:

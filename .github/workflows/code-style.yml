@@ -6,15 +6,9 @@ permissions:
 on:
   push:
     branches: [main]
-    paths:
-      - '*.c'
-      - '.clang-format'
-      - '.github/workflows/code-format.yml'
   pull_request:
-    paths:
-      - '*.c'
-      - '.clang-format'
-      - '.github/workflows/code-format.yml'
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   clang-format:
