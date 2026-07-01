@@ -1,5 +1,16 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (c) 2026, UAB Kurokesu. All rights reserved.
+#
+# DKMS post-install: build and install the device tree overlay to /boot.
+
+set -e
+
+# Status line formatter (matches Makefile's PRINT)
+print() { printf '  %-7s %s\n' "$1" "$2"; }
 
 cd "$(dirname "$0")"
 make dtbo
+
+print INSTALL "/boot/overlays/$(basename build/*.dtbo)"
 install -m 644 build/*.dtbo /boot/overlays/
