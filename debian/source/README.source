@@ -1,0 +1,87 @@
+Packaging layout and release procedure
+=======================================
+
+Packaging branch for ar0234-rpi-dkms, kept separate from driver source
+under a DEP-14 layout:
+
+  * main           - driver source (ar0234.c, Makefile, overlay, dkms.conf,
+                     setup.sh). Tagged v<upstream> per release.
+  * debian/latest  - this branch: debian/ recipe only, no source. Tagged
+                     debian/<upstream>-<revision> per packaging release.
+
+The two branches never share files. A release build fetches source from
+the v<upstream> tag and lays this debian/ recipe over it.
+
+Branch layout
+-------------
+
+This branch carries the recipe and thin entry points into the shared
+CI/CD machinery in Kurokesu/ci:
+
+  * debian/            - recipe (debhelper + dh-dkms, arch:all).
+  * .github/workflows/ - ci.yml (branch validation) and release.yml
+                         (tagged publish), shims calling the reusable
+                         workflows in Kurokesu/ci.
+  * release.sh         - launcher that fetches and runs the canonical
+                         release script from Kurokesu/ci.
+
+Build, sign and publish logic and the archive keyring live in
+Kurokesu/ci. Shims and launcher resolve its main branch at run time,
+so fixes there apply here without a commit.
+
+Workflow files live here, not on main, because GitHub Actions resolves
+pull_request and tag-push triggers from a base branch's own workflow
+files. Hosting them on main would stop PRs that target debian/latest
+from triggering CI.
+
+Releasing
+---------
+
+A release is a pair of tags:
+
+  * main is tagged v<upstream>, revision-less, e.g. v0.1.0.
+  * debian/latest is tagged debian/<upstream>-<revision>, carrying a
+    Debian revision, e.g. debian/0.1.0-1.
+
+dkms.conf on main is the one place a human bumps the version. To
+release, from this branch:
+
+  1. ./release.sh --prepare opens a debian/changelog entry versioned
+     from dkms.conf. Edit the entry text, commit, push, wait for
+     green CI.
+  2. ./release.sh dry-runs the tagging. --execute tags and pushes.
+
+release.sh derives both tag names from debian/changelog on the remote
+packaging tip, reuses a source tag across packaging-only rebuilds,
+refuses to tag on version drift or red CI and pushes both tags
+atomically. That packaging-tag push triggers release.yml.
+
+Manual equivalent (what release.sh automates):
+
+  1. Tag source on main with v<upstream>.
+  2. Tag this branch with debian/<upstream>-<revision>.
+  3. Push both tags.
+
+A packaging-only rebuild (0.1.0-1 to 0.1.0-2) moves only a packaging tag
+and refreshes an existing release page. Source tag v0.1.0 is reused, not
+retagged.
+
+New releases ship as pre-releases with notes seeded from the changelog
+entry. Edit notes by hand before promoting to Latest.
+
+Release assets: a tarball ar0234-rpi-dkms_<full-version>.tar.gz carrying
+the .deb plus a build's .changes and .buildinfo, alongside SHA256SUMS and
+a detached SHA256SUMS.asc. A source package stays in workflow-run
+artifacts only.
+
+Migrating from a setup.sh install
+---------------------------------
+
+If setup.sh already installed the module, DKMS owns its tree under the
+same package name, so a first package install collides. Remove the
+hand-built module once:
+
+  sudo dkms remove ar0234-rpi-dkms/<old-version> --all
+  sudo dpkg --configure -a   # if a package install was interrupted
+
+Subsequent package upgrades need no manual steps.

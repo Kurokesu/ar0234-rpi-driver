@@ -1,0 +1,19 @@
+name: Release
+
+# Durable publish on a debian/<full-version> tag push. Cut releases with
+# release.sh. See "Releasing" in debian/source/README.source.
+
+on:
+  push:
+    tags: ['debian/**']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    uses: Kurokesu/ci/.github/workflows/dkms-release.yml@main
+    secrets: inherit

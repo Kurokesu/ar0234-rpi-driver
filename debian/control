@@ -1,0 +1,20 @@
+Source: ar0234-rpi-dkms
+Section: kernel
+Priority: optional
+Maintainer: Kurokesu <info@kurokesu.com>
+Build-Depends: debhelper-compat (= 13), dh-dkms
+Standards-Version: 4.7.0
+Homepage: https://github.com/Kurokesu/ar0234-rpi-driver
+Rules-Requires-Root: no
+
+Package: ar0234-rpi-dkms
+Architecture: all
+Depends: ${misc:Depends}, dkms
+Recommends: linux-headers-rpi-2712 | linux-headers-rpi-v8
+Description: Onsemi AR0234 camera driver for Raspberry Pi (DKMS)
+ Kernel module and device tree overlay for Onsemi AR0234, a 2.3 MP
+ global shutter CMOS sensor, on Raspberry Pi with kernel 6.12 or newer.
+ .
+ DKMS builds the module on target, so one package covers every Raspberry Pi
+ OS release and kernel update. Installing it also places ar0234 overlay
+ in /boot/overlays.

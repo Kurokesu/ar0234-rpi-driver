@@ -1,0 +1,15 @@
+ar0234-rpi-dkms (0.1.0-1) unstable; urgency=medium
+
+  * Initial release as a DKMS source package.
+  * Driver state at this release:
+    - 1920x1200 at up to 120 fps (full resolution), 960x600 at up
+      to 237 fps (2x2 binning), 8-bit and 10-bit RAW output.
+    - 2-lane and 4-lane MIPI CSI-2 at up to 900 Mbps per lane.
+    - External trigger modes (pulsed, automatic, sync-sink) and
+      flash output with programmable lead and lag delay.
+    - ar0234 device tree overlay with cam0, 4lane, link-frequency,
+      external-trigger, sync-sink, always-on and flash options.
+    - Targeting Linux kernel 6.12 or newer.
+    - Validated on Raspberry Pi OS Bookworm and Trixie.
+
+ -- Danius Kalvaitis <danius@kurokesu.com>  Thu, 02 Jul 2026 20:35:00 +0300

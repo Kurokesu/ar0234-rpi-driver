@@ -1,0 +1,23 @@
+name: CI
+
+# Transient validation of the packaging recipe on every push and pull
+# request to debian/latest. Builds against current driver source on
+# main. release.sh refuses to tag unless this branch's latest run is green.
+
+on:
+  push:
+    branches: [debian/latest]
+  pull_request:
+    branches: [debian/latest]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build:
+    uses: Kurokesu/ci/.github/workflows/dkms-build.yml@main
+    with:
+      upstream-ref: main

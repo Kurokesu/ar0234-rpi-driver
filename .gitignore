@@ -1,0 +1,16 @@
+# Debian packaging build artifacts
+debian/.debhelper/
+debian/ar0234-rpi-dkms/
+debian/files
+debian/debhelper-build-stamp
+debian/*.debhelper
+debian/*.debhelper.log
+debian/*.substvars
+
+# Build products
+*.deb
+*.dsc
+*.changes
+*.buildinfo
+*.orig.tar.*
+*.debian.tar.*

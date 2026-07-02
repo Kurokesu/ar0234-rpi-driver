@@ -1,0 +1,24 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+
+# The DKMS tree is keyed by the dkms.conf version (semver, hyphen
+# pre-releases), matching where dh_dkms installs dkms.conf. The
+# changelog carries the Debian form with '~' instead.
+DKMS_VERSION := $(shell sed -n 's/^PACKAGE_VERSION="\(.*\)"/\1/p' dkms.conf)
+DKMS_DEST = usr/src/ar0234-rpi-dkms-$(DKMS_VERSION)
+
+%:
+	dh $@ --with dkms
+
+# The module and overlay are built on target by DKMS at install time,
+# not during packaging. Skipping the upstream build keeps the package
+# buildable in a container that has no kernel headers.
+override_dh_auto_build:
+
+# dkms.conf and the changelog must name the same version, compared in
+# Debian form. Assert before shipping.
+override_dh_install:
+	test "$(subst -,~,$(DKMS_VERSION))" = "$(DEB_VERSION_UPSTREAM)" \
+		|| { echo "ERROR: dkms.conf PACKAGE_VERSION ($(DKMS_VERSION)) does not map to changelog upstream ($(DEB_VERSION_UPSTREAM)). Bump dkms.conf on main to match debian/changelog." >&2; exit 1; }
+	dh_install ar0234.c ar0234-overlay.dts Makefile dkms.postinst $(DKMS_DEST)
