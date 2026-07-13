@@ -2,8 +2,9 @@
 
 [![Build](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/build-rpi.yml/badge.svg)](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/build-rpi.yml)
 [![Code style](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/code-style.yml/badge.svg)](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/code-style.yml)
-[![Raspberry Pi OS Bookworm](https://img.shields.io/badge/Raspberry_Pi_OS-Bookworm-blue?logo=raspberrypi)](https://www.debian.org/releases/bookworm/)
-[![Raspberry Pi OS Trixie](https://img.shields.io/badge/Raspberry_Pi_OS-Trixie-blue?logo=raspberrypi)](https://www.debian.org/releases/trixie/)
+[![Release](https://img.shields.io/github/v/release/Kurokesu/ar0234-rpi-driver)](https://github.com/Kurokesu/ar0234-rpi-driver/releases/latest)
+[![Kurokesu apt archive](https://img.shields.io/badge/apt-apt.kurokesu.com-D70A53?logo=debian)](https://apt.kurokesu.com)
+[![RPi OS Bookworm | Trixie](https://img.shields.io/badge/RPi_OS-Bookworm_%7C_Trixie-blue?logo=raspberrypi)](https://www.raspberrypi.com/software/operating-systems/)
 [![Kernel 6.12+](https://img.shields.io/badge/kernel-6.12%2B-blue?logo=raspberrypi)](https://github.com/raspberrypi/linux/tree/rpi-6.12.y)
 
 Raspberry Pi kernel driver for Onsemi AR0234, a 2.3 MP global shutter 1/2.6" CMOS sensor.
@@ -15,28 +16,39 @@ Raspberry Pi kernel driver for Onsemi AR0234, a 2.3 MP global shutter 1/2.6" CMO
 - External trigger modes (pulsed, automatic, sync-sink)
 - Flash output with programmable lead/lag delay
 
-## Setup
+![Kurokesu camera modules connected to a Raspberry Pi 5](https://raw.githubusercontent.com/Kurokesu/ar0234-rpi-driver/main/docs/kurokesu-on-pi.jpg)
 
-Install required tools:
+*AR0234 camera modules are available at [kurokesu.com](https://www.kurokesu.com/item/234C-CSI)*
 
-```bash
-sudo apt install -y git
-sudo apt install -y --no-install-recommends dkms
-```
+## Install
 
-Clone this repository:
+Connect camera to CSI port with Pi powered off.
 
-```bash
-cd ~
-git clone https://github.com/Kurokesu/ar0234-rpi-driver.git
-cd ar0234-rpi-driver/
-```
-
-Run setup script:
+Update OS and reboot:
 
 ```bash
-sudo ./setup.sh
+sudo apt update && sudo apt full-upgrade -y
+sudo reboot
 ```
+
+> [!IMPORTANT]
+> If driver or camera stack was previously built from source, run one-time cleanup before first apt install. See [migrating from a source install](#migrating-from-a-source-install).
+
+Enable Kurokesu apt archive (skip if already enabled):
+
+```bash
+curl -fsSLO https://apt.kurokesu.com/setup.sh
+sudo sh setup.sh
+```
+
+Install driver and camera stack:
+
+```bash
+sudo apt update
+sudo apt install -y ar0234-rpi-dkms rpicam-apps
+```
+
+*With archive enabled, apt resolves Kurokesu `rpicam-apps` and `libcamera` forks with AR0234 support as updates to stock packages. Later updates arrive with regular `apt upgrade`.*
 
 Edit boot configuration:
 
@@ -59,10 +71,45 @@ camera_auto_detect=0
 dtoverlay=ar0234
 ```
 
-Save and exit. Reboot for changes to take effect.
+*If camera is connected to cam0 port, use `dtoverlay=ar0234,cam0` instead. See [cam0](#cam0).*
 
-> [!IMPORTANT]
-> Stock `libcamera` does not support AR0234. You must build a patched version for camera to function. See [Build libcamera](#build-libcamera) below.
+Save and exit.
+
+`config.txt` changes take effect after reboot:
+
+```bash
+sudo reboot
+```
+
+Verify camera is detected:
+
+```bash
+rpicam-hello --list-cameras
+```
+
+Expected output (varies by link frequency and lane configuration):
+
+```
+Available cameras
+-----------------
+0 : ar0234 [1920x1200 10-bit GRBG] (/base/axi/pcie@1000120000/rp1/i2c@80000/ar0234@10)
+    Modes: 'SGRBG10_CSI2P' : 960x600 [236.85 fps - (0, 0)/1920x1200 crop]
+                             1280x720 [198.49 fps - (320, 240)/1280x720 crop]
+                             1920x1080 [133.58 fps - (60, 0)/1920x1080 crop]
+                             1920x1200 [120.45 fps - (0, 0)/1920x1200 crop]
+```
+
+Start live preview:
+
+```bash
+rpicam-hello -t 0
+```
+
+On headless systems, capture a still image instead:
+
+```bash
+rpicam-still -o test.jpg
+```
 
 ## dtoverlay options
 
@@ -242,166 +289,57 @@ For most use cases, small delay values (single digits) are sufficient. Large del
 > [!NOTE]
 > In trigger mode, flash output is suppressed when the trigger pulse is shorter than ~1.5 ms.
 
-## Build libcamera
+## Build from source
 
-Main `libcamera` repository does not support AR0234. A fork with necessary modifications is available.
-
-On Raspberry Pi, `libcamera` and `rpicam-apps` must be rebuilt together. Detailed instructions are available [here](https://www.raspberrypi.com/documentation/computers/camera_software.html#advanced-rpicam-apps), but for convenience, here is a shorter version.
-
-Remove pre-installed `rpicam-apps`:
+Install required tools:
 
 ```bash
-sudo apt remove --purge rpicam-apps
+sudo apt install -y git
+sudo apt install -y --no-install-recommends dkms
 ```
 
-### libcamera
-
-Install dependencies:
-
-```bash
-sudo apt install -y libboost-dev
-sudo apt install -y libgnutls28-dev openssl libtiff5-dev pybind11-dev
-sudo apt install -y qtbase5-dev libqt5core5a libqt5gui5 libqt5widgets5
-sudo apt install -y meson cmake
-sudo apt install -y python3-yaml python3-ply
-sudo apt install -y libglib2.0-dev libgstreamer-plugins-base1.0-dev
-```
-
-Clone Kurokesu's `libcamera` fork with AR0234 support:
+Clone this repository:
 
 ```bash
 cd ~
-git clone https://github.com/Kurokesu/libcamera.git --branch ar0234
-cd libcamera/
+git clone https://github.com/Kurokesu/ar0234-rpi-driver.git
+cd ar0234-rpi-driver/
 ```
 
-Configure with `meson`:
+If driver was installed from apt archive previously, remove it first:
 
 ```bash
-meson setup build --buildtype=release -Dpipelines=rpi/vc4,rpi/pisp -Dipas=rpi/vc4,rpi/pisp -Dv4l2=enabled -Dgstreamer=enabled -Dtest=false -Dlc-compliance=disabled -Dcam=disabled -Dqcam=disabled -Ddocumentation=disabled -Dpycamera=enabled
+sudo apt remove ar0234-rpi-dkms
 ```
 
-Build:
+Run setup script:
 
 ```bash
-ninja -C build
+sudo ./setup.sh
 ```
 
-Install:
+Camera stack, boot configuration and verification follow [Install](#install). Skip `ar0234-rpi-dkms` there, only `rpicam-apps` is needed. To build `libcamera` and `rpicam-apps` from source as well, see [libcamera/BUILDING.md](https://github.com/Kurokesu/libcamera/blob/kurokesu/BUILDING.md).
+
+## Migrating from a source install
+
+One-time cleanup before first apt install.
+
+Remove `ar0234` driver modules installed by `setup.sh`:
 
 ```bash
-sudo ninja -C build install
+dkms status | grep ar0234 | cut -d, -f1 | sort -u | xargs -rI{} sudo dkms remove {} --all
 ```
 
-> [!TIP]
-> On devices with 1 GB of memory or less, build may exceed available memory. Append `-j 1` to limit to a single process.
+Source-built `libcamera` and `rpicam-apps` install to `/usr/local` and shadow packaged binaries. Remove them:
 
 > [!WARNING]
-> `libcamera` does not yet have a stable binary interface. Always build `rpicam-apps` after building `libcamera`.
-
-### rpicam-apps
-
-Install dependencies:
+> Command below deletes everything under `/usr/local` with `libcamera`, `rpicam` or `libpisp` in its name, including custom scripts or files named after them.
 
 ```bash
-sudo apt install -y cmake libboost-program-options-dev libdrm-dev libexif-dev
-sudo apt install -y libavcodec-dev libavdevice-dev libavformat-dev libswresample-dev
-sudo apt install -y libepoxy-dev libpng-dev
+sudo find /usr/local -depth \( -name '*libcamera*' -o -name '*rpicam*' -o -name '*libpisp*' \) -exec rm -rf {} +
 ```
 
-Clone Raspberry Pi's `rpicam-apps` repository:
-
-```bash
-cd ~
-git clone https://github.com/raspberrypi/rpicam-apps.git
-cd rpicam-apps
-```
-
-Configure with `meson` (libav enabled by default):
-
-```bash
-meson setup build -Denable_libav=enabled -Denable_drm=enabled -Denable_egl=enabled -Denable_qt=enabled -Denable_opencv=disabled -Denable_tflite=disabled -Denable_hailo=disabled
-```
-
-> [!IMPORTANT]
-> On Raspberry Pi OS **Bookworm**, packaged `libav*` is **too old** for `rpicam-apps` newer than v1.9.0.
-
-<details>
-<summary>Bookworm libav workaround</summary>
-
-Bookworm ships `libavcodec` **59.x** while newer `rpicam-apps` expects **libavcodec >= 60**, causing build errors like "libavcodec API version is too old" (see [Raspberry Pi forum thread](https://forums.raspberrypi.com/viewtopic.php?t=392649)).
-
-- **Keep libav** by checking out `rpicam-apps` **v1.9.0** before running `meson setup`:
-  ```bash
-  git checkout v1.9.0
-  ```
-- **Disable libav** if building `rpicam-apps` > v1.9.0:
-  ```bash
-  meson setup build -Denable_libav=disabled -Denable_drm=enabled -Denable_egl=enabled -Denable_qt=enabled -Denable_opencv=disabled -Denable_tflite=disabled -Denable_hailo=disabled
-  ```
-
-</details>
-
-Build:
-
-```bash
-meson compile -C build
-```
-
-Install:
-
-```bash
-sudo meson install -C build
-```
-
-> [!TIP]
-> This should automatically update `ldconfig` cache. If you have trouble accessing your new build, update manually:
->
-> ```bash
-> sudo ldconfig
-> ```
-
-### Verify rpicam-apps build
-
-Verify `rpicam-apps` was rebuilt correctly:
-
-```bash
-rpicam-hello --version
-```
-
-Expected output (build date will differ):
-
-```
-rpicam-apps build: v1.11.1 8b7be4ebfe18 24-02-2026 (19:30:43)
-rpicam-apps capabilites: egl:1 qt:1 drm:1 libav:1
-libcamera build: v0.0.0+6157-91924454
-```
-
-### Verify that `ar0234` is detected
-
-Do not forget to reboot!
-
-```bash
-sudo reboot
-```
-
-List available cameras:
-
-```bash
-rpicam-hello --list-cameras
-```
-
-Expected output (varies by link frequency and lane configuration):
-
-```
-Available cameras
------------------
-0 : ar0234 [1920x1200 10-bit GRBG] (/base/axi/pcie@1000120000/rp1/i2c@80000/ar0234@10)
-    Modes: 'SGRBG10_CSI2P' : 960x600 [236.85 fps - (0, 0)/1920x1200 crop]
-                             1280x720 [198.49 fps - (320, 240)/1280x720 crop]
-                             1920x1080 [133.58 fps - (60, 0)/1920x1080 crop]
-                             1920x1200 [120.45 fps - (0, 0)/1920x1200 crop]
-```
+Cleanup complete. Continue with [install steps](#install).
 
 ## Special thanks
 
