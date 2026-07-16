@@ -194,6 +194,12 @@ dtoverlay=ar0234,link-frequency=360000000
 
 AR0234 supports two external trigger modes. Both use `TRIG` pin on camera module as external signal input. `TRIG` is a **1.8V logic level** input wired directly to sensor. Trigger pulse only initiates capture, exposure time remains controlled by sensor's integration time register.
 
+`TRIG` and `FLASH` signals are available on AUX connector:
+
+![ar0234-aux](https://raw.githubusercontent.com/Kurokesu/ar0234-rpi-driver/main/docs/ar0234-aux.png "ar0234-aux")
+
+*Full module pinout and AUX connector part number are documented in [234x-CSI wiki page](https://wiki.kurokesu.com/books/mipi-csi2-camera-modules/page/234x-csi)*
+
 #### external-trigger
 
 Sensor stays in standby and waits for activity on `TRIG` pin. Exposure and readout happen sequentially: readout does not begin until exposure is complete. Two sub-modes are available:
@@ -241,7 +247,7 @@ dtoverlay=ar0234,sync-sink
 
 ---
 
-Trigger modes can also be set at runtime via the module parameter:
+Trigger modes can also be set at runtime via module parameter:
 
 ```bash
 # 0=off, 1=external-trigger, 2=sync-sink
