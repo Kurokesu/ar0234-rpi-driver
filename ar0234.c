@@ -1067,6 +1067,7 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 	if (ret < 0) {
 		dev_err(dev, "%s failed to apply recommended pixclk settings\n",
 			__func__);
+		return ret;
 	}
 
 	/* Apply default values of current frame format */
