@@ -1,0 +1,12 @@
+name: Version guard
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dkms:
+    uses: Kurokesu/ci/.github/workflows/dkms-version-guard.yml@main
