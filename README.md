@@ -1,9 +1,9 @@
 # AR0234 kernel driver for Raspberry Pi
 
-[![Build](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/build-rpi.yml/badge.svg)](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/build-rpi.yml)
+[![Build](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/build.yml/badge.svg)](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/build.yml)
 [![Code style](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/code-style.yml/badge.svg)](https://github.com/Kurokesu/ar0234-rpi-driver/actions/workflows/code-style.yml)
 [![Release](https://img.shields.io/github/v/release/Kurokesu/ar0234-rpi-driver)](https://github.com/Kurokesu/ar0234-rpi-driver/releases/latest)
-[![Kurokesu apt archive](https://img.shields.io/badge/apt-apt.kurokesu.com-D70A53?logo=debian)](https://apt.kurokesu.com)
+[![Kurokesu apt archive](https://img.shields.io/badge/apt-Kurokesu_archive-D70A53?logo=debian)](https://apt.kurokesu.com)
 [![RPi OS Bookworm | Trixie](https://img.shields.io/badge/RPi_OS-Bookworm_%7C_Trixie-blue?logo=raspberrypi)](https://www.raspberrypi.com/software/operating-systems/)
 [![Kernel 6.12+](https://img.shields.io/badge/kernel-6.12%2B-blue?logo=raspberrypi)](https://github.com/raspberrypi/linux/tree/rpi-6.12.y)
 
