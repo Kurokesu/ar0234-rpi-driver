@@ -620,7 +620,7 @@ static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 	struct ar0234 *ar0234 =
 		container_of(ctrl->handler, struct ar0234, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&ar0234->sd);
-	int ret;
+	int ret = 0;
 
 	if (ctrl->id == V4L2_CID_VBLANK)
 		ar0234_adjust_exposure_range(ar0234);
@@ -677,7 +677,7 @@ static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 				NULL);
 		break;
 	case V4L2_CID_HBLANK:
-		ret = -EINVAL;
+		/* Read only, line length is set with mode registers. */
 		break;
 	default:
 		dev_info(&client->dev,
@@ -838,7 +838,6 @@ static void ar0234_set_framing_limits(struct ar0234 *ar0234)
 
 	hblank = AR0234_LINE_LENGTH_PCK_DEF - mode->width;
 	__v4l2_ctrl_modify_range(ar0234->hblank, hblank, hblank, 1, hblank);
-	__v4l2_ctrl_s_ctrl(ar0234->hblank, hblank);
 }
 
 static int ar0234_set_pad_format(struct v4l2_subdev *sd,
