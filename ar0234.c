@@ -362,8 +362,8 @@ static const struct ar0234_mode ar0234_modes[] = {
 		.width = 1920,
 		.height = 1080,
 		.crop = {
-			.left = AR0234_PIXEL_ARRAY_LEFT + 60,
-			.top = AR0234_PIXEL_ARRAY_TOP,
+			.left = AR0234_PIXEL_ARRAY_LEFT,
+			.top = AR0234_PIXEL_ARRAY_TOP + 60,
 			.width = 1920,
 			.height = 1080,
 		},
