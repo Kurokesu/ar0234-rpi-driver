@@ -1,3 +1,13 @@
+ar0234-rpi-dkms (0.1.1-1) unstable; urgency=medium
+
+  * Move 1080p crop 60 pixel offset from left to top.
+  * Correct active area origin to 8, matching X_ADDR.
+  * Report raw colorspace instead of sRGB.
+  * Handle read-only HBLANK control, no longer logged as unhandled.
+  * Return on pixel clock configuration failure.
+
+ -- Danius Kalvaitis <danius@kurokesu.com>  Fri, 28 Aug 2026 16:19:32 +0300
+
 ar0234-rpi-dkms (0.1.0-1) unstable; urgency=medium
 
   * Initial release as a DKMS source package.
