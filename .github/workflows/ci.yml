@@ -21,3 +21,15 @@ jobs:
     uses: Kurokesu/ci/.github/workflows/dkms-build.yml@main
     with:
       upstream-ref: main
+
+  mark-source:
+    if: github.event_name == 'push'
+    needs: build
+    permissions:
+      statuses: write
+    uses: Kurokesu/ci/.github/workflows/commit-status.yml@main
+    with:
+      sha: ${{ needs.build.outputs.source-sha }}
+      state: success
+      context: packaging/source-build
+      description: ${{ needs.build.outputs.package }} ${{ needs.build.outputs.packaging-version }} packaging build
