@@ -14,6 +14,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  release:
+  dkms:
     uses: Kurokesu/ci/.github/workflows/dkms-release.yml@main
     secrets: inherit
