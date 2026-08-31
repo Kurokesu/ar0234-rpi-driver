@@ -43,6 +43,10 @@ A release is a pair of tags:
   * debian/latest is tagged debian/<upstream>-<revision>, carrying a
     Debian revision, e.g. debian/0.1.0-1.
 
+Releasing needs dpkg-dev, devscripts for --prepare, curl and python3
+for tagging. Export DEBEMAIL as "Name <email>" for changelog
+attribution. release.sh names anything missing.
+
 dkms.conf on main is the one place a human bumps the version. To
 release, from this branch:
 
