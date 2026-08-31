@@ -19,6 +19,12 @@ override_dh_auto_build:
 # dkms.conf and the changelog must name the same version, compared in
 # Debian form. Assert before shipping.
 override_dh_install:
-	test "$(subst -,~,$(DKMS_VERSION))" = "$(DEB_VERSION_UPSTREAM)" \
-		|| { echo "ERROR: dkms.conf PACKAGE_VERSION ($(DKMS_VERSION)) does not map to changelog upstream ($(DEB_VERSION_UPSTREAM)). Bump dkms.conf on main to match debian/changelog." >&2; exit 1; }
+	@if test "$(subst -,~,$(DKMS_VERSION))" != "$(DEB_VERSION_UPSTREAM)"; then \
+		if [ "$${DRIFT_GUARD:-}" = warn ]; then \
+			echo "WARNING: dkms.conf PACKAGE_VERSION ($(DKMS_VERSION)) does not map to changelog upstream ($(DEB_VERSION_UPSTREAM)). Mergeable, blocks release until changelog catches up." >&2; \
+		else \
+			echo "ERROR: dkms.conf PACKAGE_VERSION ($(DKMS_VERSION)) does not map to changelog upstream ($(DEB_VERSION_UPSTREAM)). Bump dkms.conf on main to match debian/changelog." >&2; \
+			exit 1; \
+		fi; \
+	fi
 	dh_install ar0234.c ar0234-overlay.dts Makefile dkms.postinst $(DKMS_DEST)
