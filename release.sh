@@ -1,6 +1,6 @@
 #!/bin/bash
-# Thin launcher for the canonical release script in Kurokesu/ci.
-# REF must match the @ref in the release.yml/ci.yml shims.
+# Thin launcher for canonical release script in Kurokesu/ci
+# REF must match @ref in release.yml/ci.yml shims
 set -euo pipefail
 
 REF=main
