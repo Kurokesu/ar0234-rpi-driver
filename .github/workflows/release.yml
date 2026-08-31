@@ -1,7 +1,6 @@
 name: Release
 
-# Durable publish on a debian/<full-version> tag push. Cut releases with
-# release.sh. See "Releasing" in debian/source/README.source.
+# Cut releases with release.sh, see "Releasing" in debian/source/README.source
 
 on:
   push:

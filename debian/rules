@@ -2,22 +2,17 @@
 
 include /usr/share/dpkg/pkg-info.mk
 
-# The DKMS tree is keyed by the dkms.conf version (semver, hyphen
-# pre-releases), matching where dh_dkms installs dkms.conf. The
-# changelog carries the Debian form with '~' instead.
+# Tree path must match where dh_dkms installs dkms.conf
 DKMS_VERSION := $(shell sed -n 's/^PACKAGE_VERSION="\(.*\)"/\1/p' dkms.conf)
 DKMS_DEST = usr/src/ar0234-rpi-dkms-$(DKMS_VERSION)
 
 %:
 	dh $@ --with dkms
 
-# The module and overlay are built on target by DKMS at install time,
-# not during packaging. Skipping the upstream build keeps the package
-# buildable in a container that has no kernel headers.
+# DKMS builds on target, so packaging needs no kernel headers
 override_dh_auto_build:
 
-# dkms.conf and the changelog must name the same version, compared in
-# Debian form. Assert before shipping.
+# dkms.conf and changelog must name same version, compared in Debian form
 override_dh_install:
 	@if test "$(subst -,~,$(DKMS_VERSION))" != "$(DEB_VERSION_UPSTREAM)"; then \
 		if [ "$${DRIFT_GUARD:-}" = warn ]; then \

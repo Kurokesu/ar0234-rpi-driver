@@ -1,8 +1,8 @@
 name: CI
 
-# Transient validation of the packaging recipe on every push and pull
-# request to debian/latest. Builds against current driver source on
-# main. release.sh refuses to tag unless this branch's latest run is green.
+# Transient validation of packaging recipe on every push and pull request
+# to debian/latest. Builds against current driver source on main.
+# release.sh refuses to tag unless this branch's latest run is green
 
 on:
   push:
