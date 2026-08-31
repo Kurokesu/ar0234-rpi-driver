@@ -467,8 +467,6 @@ struct ar0234 {
 	struct v4l2_subdev sd;
 	struct media_pad pad[NUM_PADS];
 
-	struct v4l2_mbus_framefmt fmt;
-
 	bool monochrome;
 
 	struct v4l2_ctrl_handler ctrl_handler;
@@ -479,14 +477,7 @@ struct ar0234 {
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
 
-	const struct ar0234_mode *cur_mode;
 	u16 mfr_30ba;
-
-	/* Protects pad format and streaming state */
-	struct mutex mutex;
-
-	/* Streaming on/off */
-	bool streaming;
 };
 
 static inline struct ar0234 *to_ar0234(struct v4l2_subdev *_sd)
@@ -506,64 +497,22 @@ static u32 ar0234_get_format_code(struct ar0234 *ar0234)
 	return code;
 }
 
-static void ar0234_set_default_format(struct ar0234 *ar0234)
+static const struct ar0234_mode *
+ar0234_state_get_mode(struct v4l2_subdev_state *state)
 {
 	struct v4l2_mbus_framefmt *fmt;
 
-	fmt = &ar0234->fmt;
-	fmt->code = ar0234_get_format_code(ar0234);
+	fmt = v4l2_subdev_state_get_format(state, IMAGE_PAD);
 
-	fmt->colorspace = V4L2_COLORSPACE_RAW;
-	fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(fmt->colorspace);
-	fmt->quantization = V4L2_MAP_QUANTIZATION_DEFAULT(true, fmt->colorspace,
-							  fmt->ycbcr_enc);
-	fmt->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(fmt->colorspace);
-	fmt->width = ar0234_modes[0].width;
-	fmt->height = ar0234_modes[0].height;
-	fmt->field = V4L2_FIELD_NONE;
-
-	ar0234->cur_mode = &ar0234_modes[0];
+	return v4l2_find_nearest_size(ar0234_modes, ARRAY_SIZE(ar0234_modes),
+				      width, height, fmt->width, fmt->height);
 }
 
-static int ar0234_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+static void ar0234_adjust_exposure_range(struct ar0234 *ar0234,
+					 const struct ar0234_mode *mode)
 {
-	struct ar0234 *ar0234 = to_ar0234(sd);
-	struct v4l2_mbus_framefmt *try_fmt_img =
-		v4l2_subdev_state_get_format(fh->state, IMAGE_PAD);
-	struct v4l2_mbus_framefmt *try_fmt_meta =
-		v4l2_subdev_state_get_format(fh->state, METADATA_PAD);
-	struct v4l2_rect *try_crop;
-
-	mutex_lock(&ar0234->mutex);
-
-	/* Initialize try_fmt for the image pad */
-	try_fmt_img->width = ar0234_modes[0].width;
-	try_fmt_img->height = ar0234_modes[0].height;
-	try_fmt_img->code = ar0234_get_format_code(ar0234);
-	try_fmt_img->field = V4L2_FIELD_NONE;
-
-	/* Initialize try_fmt for the embedded metadata pad */
-	try_fmt_meta->width = AR0234_EMBEDDED_LINE_WIDTH;
-	try_fmt_meta->height = AR0234_NUM_EMBEDDED_LINES;
-	try_fmt_meta->code = MEDIA_BUS_FMT_SENSOR_DATA;
-	try_fmt_meta->field = V4L2_FIELD_NONE;
-
-	/* Initialize try_crop rectangle */
-	try_crop = v4l2_subdev_state_get_crop(fh->state, IMAGE_PAD);
-	try_crop->top = AR0234_PIXEL_ARRAY_TOP;
-	try_crop->left = AR0234_PIXEL_ARRAY_LEFT;
-	try_crop->width = AR0234_PIXEL_ARRAY_WIDTH;
-	try_crop->height = AR0234_PIXEL_ARRAY_HEIGHT;
-
-	mutex_unlock(&ar0234->mutex);
-
-	return 0;
-}
-
-static void ar0234_adjust_exposure_range(struct ar0234 *ar0234)
-{
-	int exposure_max = ar0234->cur_mode->height + ar0234->vblank->val -
-			   AR0234_FLL_OVERHEAD - 1;
+	int exposure_max =
+		mode->height + ar0234->vblank->val - AR0234_FLL_OVERHEAD - 1;
 
 	__v4l2_ctrl_modify_range(ar0234->exposure, ar0234->exposure->minimum,
 				 exposure_max, ar0234->exposure->step,
@@ -620,10 +569,15 @@ static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 	struct ar0234 *ar0234 =
 		container_of(ctrl->handler, struct ar0234, ctrl_handler);
 	struct i2c_client *client = v4l2_get_subdevdata(&ar0234->sd);
+	struct v4l2_subdev_state *state;
+	const struct ar0234_mode *mode;
 	int ret = 0;
 
+	state = v4l2_subdev_get_locked_active_state(&ar0234->sd);
+	mode = ar0234_state_get_mode(state);
+
 	if (ctrl->id == V4L2_CID_VBLANK)
-		ar0234_adjust_exposure_range(ar0234);
+		ar0234_adjust_exposure_range(ar0234, mode);
 
 	/*
 	 * Applying V4L2 control value only happens
@@ -672,8 +626,7 @@ static int ar0234_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_VBLANK:
 		ret = cci_write(ar0234->regmap, AR0234_REG_FRAME_LENGTH_LINES,
-				ar0234->cur_mode->height + ctrl->val -
-					AR0234_FLL_OVERHEAD,
+				mode->height + ctrl->val - AR0234_FLL_OVERHEAD,
 				NULL);
 		break;
 	case V4L2_CID_HBLANK:
@@ -763,8 +716,7 @@ static void ar0234_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
 	fmt->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(fmt->colorspace);
 }
 
-static void ar0234_update_image_pad_format(struct ar0234 *ar0234,
-					   const struct ar0234_mode *mode,
+static void ar0234_update_image_pad_format(const struct ar0234_mode *mode,
 					   struct v4l2_subdev_format *fmt)
 {
 	fmt->format.width = mode->width;
@@ -781,52 +733,10 @@ static void ar0234_update_metadata_pad_format(struct v4l2_subdev_format *fmt)
 	fmt->format.field = V4L2_FIELD_NONE;
 }
 
-static int __ar0234_get_pad_format(struct ar0234 *ar0234,
-				   struct v4l2_subdev_state *sd_state,
-				   struct v4l2_subdev_format *fmt)
-{
-	if (fmt->pad >= NUM_PADS)
-		return -EINVAL;
-
-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_state_get_format(sd_state, fmt->pad);
-		/* Update the code which could change due to vflip or hflip */
-		try_fmt->code = fmt->pad == IMAGE_PAD ?
-					ar0234_get_format_code(ar0234) :
-					MEDIA_BUS_FMT_SENSOR_DATA;
-		fmt->format = *try_fmt;
-	} else {
-		if (fmt->pad == IMAGE_PAD) {
-			ar0234_update_image_pad_format(ar0234, ar0234->cur_mode,
-						       fmt);
-			fmt->format.code = ar0234_get_format_code(ar0234);
-		} else {
-			ar0234_update_metadata_pad_format(fmt);
-		}
-	}
-
-	return 0;
-}
-
-static int ar0234_get_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
-				 struct v4l2_subdev_format *fmt)
-{
-	struct ar0234 *ar0234 = to_ar0234(sd);
-	int ret;
-
-	mutex_lock(&ar0234->mutex);
-	ret = __ar0234_get_pad_format(ar0234, sd_state, fmt);
-	mutex_unlock(&ar0234->mutex);
-
-	return ret;
-}
-
-static void ar0234_set_framing_limits(struct ar0234 *ar0234)
+static void ar0234_set_framing_limits(struct ar0234 *ar0234,
+				      const struct ar0234_mode *mode)
 {
 	int hblank;
-	const struct ar0234_mode *mode = ar0234->cur_mode;
 
 	/* Update limits and set FPS to default */
 	__v4l2_ctrl_modify_range(ar0234->vblank, AR0234_VBLANK_MIN,
@@ -846,76 +756,48 @@ static int ar0234_set_pad_format(struct v4l2_subdev *sd,
 {
 	struct ar0234 *ar0234 = to_ar0234(sd);
 	const struct ar0234_mode *mode;
-	struct v4l2_mbus_framefmt *framefmt;
 
 	if (fmt->pad >= NUM_PADS)
 		return -EINVAL;
 
-	mutex_lock(&ar0234->mutex);
+	if (fmt->pad == METADATA_PAD) {
+		/* Only one embedded data mode is supported */
+		ar0234_update_metadata_pad_format(fmt);
+		*v4l2_subdev_state_get_format(sd_state, METADATA_PAD) =
+			fmt->format;
 
-	if (fmt->pad == IMAGE_PAD) {
-		fmt->format.code = ar0234_get_format_code(ar0234);
-
-		mode = v4l2_find_nearest_size(ar0234_modes,
-					      ARRAY_SIZE(ar0234_modes), width,
-					      height, fmt->format.width,
-					      fmt->format.height);
-		ar0234_update_image_pad_format(ar0234, mode, fmt);
-		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_state_get_format(sd_state,
-								fmt->pad);
-			*framefmt = fmt->format;
-		} else if (ar0234->cur_mode != mode ||
-			   ar0234->fmt.code != fmt->format.code) {
-			ar0234->fmt = fmt->format;
-			ar0234->cur_mode = mode;
-			ar0234_set_framing_limits(ar0234);
-		}
-	} else {
-		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_state_get_format(sd_state,
-								fmt->pad);
-			*framefmt = fmt->format;
-		} else {
-			/* Only one embedded data mode is supported */
-			ar0234_update_metadata_pad_format(fmt);
-		}
+		return 0;
 	}
 
-	mutex_unlock(&ar0234->mutex);
+	fmt->format.code = ar0234_get_format_code(ar0234);
+
+	mode = v4l2_find_nearest_size(ar0234_modes, ARRAY_SIZE(ar0234_modes),
+				      width, height, fmt->format.width,
+				      fmt->format.height);
+	ar0234_update_image_pad_format(mode, fmt);
+
+	*v4l2_subdev_state_get_format(sd_state, IMAGE_PAD) = fmt->format;
+
+	*v4l2_subdev_state_get_crop(sd_state, IMAGE_PAD) = mode->crop;
+
+	if (fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE)
+		ar0234_set_framing_limits(ar0234, mode);
 
 	return 0;
-}
-
-static const struct v4l2_rect *
-__ar0234_get_pad_crop(struct ar0234 *ar0234, struct v4l2_subdev_state *sd_state,
-		      unsigned int pad, enum v4l2_subdev_format_whence which)
-{
-	switch (which) {
-	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_state_get_crop(sd_state, pad);
-	case V4L2_SUBDEV_FORMAT_ACTIVE:
-		return &ar0234->cur_mode->crop;
-	}
-
-	return NULL;
 }
 
 static int ar0234_get_selection(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *sd_state,
 				struct v4l2_subdev_selection *sel)
 {
-	switch (sel->target) {
-	case V4L2_SEL_TGT_CROP: {
-		struct ar0234 *ar0234 = to_ar0234(sd);
+	if (sel->pad != IMAGE_PAD)
+		return -EINVAL;
 
-		mutex_lock(&ar0234->mutex);
-		sel->r = *__ar0234_get_pad_crop(ar0234, sd_state, sel->pad,
-						sel->which);
-		mutex_unlock(&ar0234->mutex);
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP:
+		sel->r = *v4l2_subdev_state_get_crop(sd_state, IMAGE_PAD);
 
 		return 0;
-	}
 
 	case V4L2_SEL_TGT_NATIVE_SIZE:
 		sel->r.top = 0;
@@ -1021,10 +903,18 @@ static int ar0234_stream_on(struct ar0234 *ar0234)
 	return ret;
 }
 
-static int ar0234_start_streaming(struct ar0234 *ar0234)
+static int ar0234_enable_streams(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_state *state, u32 pad,
+				 u64 streams_mask)
 {
+	struct ar0234 *ar0234 = to_ar0234(sd);
 	struct device *dev = ar0234->dev;
+	const struct ar0234_mode *mode;
 	int ret;
+
+	/* Image and metadata pads stream together, start hardware once */
+	if (v4l2_subdev_is_streaming(sd))
+		return 0;
 
 	ret = pm_runtime_resume_and_get(dev);
 	if (ret < 0)
@@ -1034,7 +924,7 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 	ret = ar0234_soft_reset(ar0234);
 	if (ret < 0) {
 		dev_err(dev, "%s failed to reset\n", __func__);
-		return ret;
+		goto err_rpm_put;
 	}
 
 	/* PLL and MIPI config */
@@ -1043,7 +933,7 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 	if (ret < 0) {
 		dev_err(dev, "%s failed to configure pll/mipi settings\n",
 			__func__);
-		return ret;
+		goto err_rpm_put;
 	}
 
 	/* Configure lane count */
@@ -1051,7 +941,7 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 			(0x0200 | ar0234->hw_config.num_data_lanes), NULL);
 	if (ret < 0) {
 		dev_err(dev, "%s failed to configure lane count\n", __func__);
-		return ret;
+		goto err_rpm_put;
 	}
 
 	/* Common */
@@ -1059,7 +949,7 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 				  ARRAY_SIZE(common_init), NULL);
 	if (ret < 0) {
 		dev_err(dev, "%s failed to set common settings\n", __func__);
-		return ret;
+		goto err_rpm_put;
 	}
 
 	/* Configure recommended pixclk settings */
@@ -1067,15 +957,15 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 	if (ret < 0) {
 		dev_err(dev, "%s failed to apply recommended pixclk settings\n",
 			__func__);
-		return ret;
+		goto err_rpm_put;
 	}
 
 	/* Apply default values of current frame format */
-	ret = ar0234_reg_seq_write(ar0234->regmap,
-				   &ar0234->cur_mode->reg_sequence);
+	mode = ar0234_state_get_mode(state);
+	ret = ar0234_reg_seq_write(ar0234->regmap, &mode->reg_sequence);
 	if (ret < 0) {
 		dev_err(dev, "%s failed to set frame format\n", __func__);
-		return ret;
+		goto err_rpm_put;
 	}
 
 	/* Configure flash output if enabled */
@@ -1088,65 +978,54 @@ static int ar0234_start_streaming(struct ar0234 *ar0234)
 		if (ret < 0) {
 			dev_err(dev, "%s failed to configure flash\n",
 				__func__);
-			return ret;
+			goto err_rpm_put;
 		}
 	}
 
 	/* Apply customized values from user */
 	ret = __v4l2_ctrl_handler_setup(ar0234->sd.ctrl_handler);
 	if (ret)
-		return ret;
+		goto err_rpm_put;
 
 	ret = ar0234_stream_on(ar0234);
+	if (ret)
+		goto err_rpm_put;
+
+	/* vflip and hflip cannot change during streaming */
+	__v4l2_ctrl_grab(ar0234->vflip, true);
+	__v4l2_ctrl_grab(ar0234->hflip, true);
+
+	return 0;
+
+err_rpm_put:
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
 
 	return ret;
 }
 
-static void ar0234_stop_streaming(struct ar0234 *ar0234)
+static int ar0234_disable_streams(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_state *state, u32 pad,
+				  u64 streams_mask)
 {
+	struct ar0234 *ar0234 = to_ar0234(sd);
 	struct device *dev = ar0234->dev;
 	int ret;
+
+	/* Stop hardware only when the last enabled pad goes */
+	if (sd->enabled_pads & ~BIT_ULL(pad))
+		return 0;
 
 	ret = cci_write(ar0234->regmap, AR0234_REG_RESET, AR0234_RESET_DEFAULT,
 			NULL);
 	if (ret < 0)
 		dev_err(dev, "%s failed to stop streaming\n", __func__);
 
+	__v4l2_ctrl_grab(ar0234->vflip, false);
+	__v4l2_ctrl_grab(ar0234->hflip, false);
+
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
-}
-
-static int ar0234_set_stream(struct v4l2_subdev *sd, int enable)
-{
-	struct ar0234 *ar0234 = to_ar0234(sd);
-	int ret = 0;
-
-	mutex_lock(&ar0234->mutex);
-	if (ar0234->streaming == enable) {
-		mutex_unlock(&ar0234->mutex);
-		return 0;
-	}
-
-	if (enable) {
-		ret = ar0234_start_streaming(ar0234);
-		if (ret)
-			goto err_start_streaming;
-	} else {
-		ar0234_stop_streaming(ar0234);
-	}
-
-	ar0234->streaming = enable;
-
-	/* vflip and hflip cannot change during streaming */
-	__v4l2_ctrl_grab(ar0234->vflip, enable);
-	__v4l2_ctrl_grab(ar0234->hflip, enable);
-
-	mutex_unlock(&ar0234->mutex);
-
-	return ret;
-
-err_start_streaming:
-	mutex_unlock(&ar0234->mutex);
 
 	return ret;
 }
@@ -1219,21 +1098,45 @@ static int ar0234_identify_module(struct ar0234 *ar0234)
 	return ret;
 }
 
+static int ar0234_init_state(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *state)
+{
+	struct v4l2_subdev_format fmt = {
+		.which = V4L2_SUBDEV_FORMAT_TRY,
+		.pad = IMAGE_PAD,
+		.format = {
+			.width = ar0234_modes[0].width,
+			.height = ar0234_modes[0].height,
+		},
+	};
+	struct v4l2_subdev_format meta_fmt = {
+		.which = V4L2_SUBDEV_FORMAT_TRY,
+		.pad = METADATA_PAD,
+	};
+
+	ar0234_set_pad_format(sd, state, &fmt);
+	ar0234_set_pad_format(sd, state, &meta_fmt);
+
+	return 0;
+}
+
 static const struct v4l2_subdev_core_ops ar0234_core_ops = {
 	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
 static const struct v4l2_subdev_video_ops ar0234_video_ops = {
-	.s_stream = ar0234_set_stream,
+	.s_stream = v4l2_subdev_s_stream_helper,
 };
 
 static const struct v4l2_subdev_pad_ops ar0234_pad_ops = {
 	.enum_mbus_code = ar0234_enum_mbus_code,
-	.get_fmt = ar0234_get_pad_format,
+	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = ar0234_set_pad_format,
 	.get_selection = ar0234_get_selection,
 	.enum_frame_size = ar0234_enum_frame_size,
+	.enable_streams = ar0234_enable_streams,
+	.disable_streams = ar0234_disable_streams,
 };
 
 static const struct v4l2_subdev_ops ar0234_subdev_ops = {
@@ -1243,26 +1146,25 @@ static const struct v4l2_subdev_ops ar0234_subdev_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops ar0234_internal_ops = {
-	.open = ar0234_open,
+	.init_state = ar0234_init_state,
 };
 
 /* Initialize control handlers */
 static int ar0234_init_controls(struct ar0234 *ar0234)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&ar0234->sd);
+	const struct ar0234_mode *mode = &ar0234_modes[0];
 	struct v4l2_fwnode_device_properties props;
 	struct v4l2_ctrl_handler *ctrl_hdlr;
 	struct v4l2_ctrl *ctrl;
 	unsigned int pixel_rate;
+	int exposure_max, hblank;
 	int i, ret;
 
 	ctrl_hdlr = &ar0234->ctrl_handler;
 	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 16);
 	if (ret)
 		return ret;
-
-	mutex_init(&ar0234->mutex);
-	ctrl_hdlr->lock = &ar0234->mutex;
 
 	/* By default, PIXEL_RATE is read only */
 	pixel_rate = ar0234_freq_pixclk[ar0234->hw_config.lane_count_id];
@@ -1272,23 +1174,26 @@ static int ar0234_init_controls(struct ar0234 *ar0234)
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
-	/*
-	 * Create the controls here, but mode specific limits are setup
-	 * in the ar0234_set_framing_limits() call below.
-	 */
+	/* Seed limits from default mode, subdev state does not exist yet */
 	ar0234->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &ar0234_ctrl_ops,
-					   V4L2_CID_VBLANK, 0, 0xFFFF, 1, 0);
+					   V4L2_CID_VBLANK, AR0234_VBLANK_MIN,
+					   AR0234_FLL_MAX - mode->height, 1,
+					   AR0234_VBLANK_MIN);
 
+	hblank = AR0234_LINE_LENGTH_PCK_DEF - mode->width;
 	ar0234->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &ar0234_ctrl_ops,
-					   V4L2_CID_HBLANK, 0, 0xFFFF, 1, 0);
+					   V4L2_CID_HBLANK, hblank, hblank, 1,
+					   hblank);
 	if (ar0234->hblank)
 		ar0234->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
+	exposure_max =
+		mode->height + AR0234_VBLANK_MIN - AR0234_FLL_OVERHEAD - 1;
 	ar0234->exposure = v4l2_ctrl_new_std(ctrl_hdlr, &ar0234_ctrl_ops,
 					     V4L2_CID_EXPOSURE,
-					     AR0234_EXPOSURE_MIN, 0xFFFF,
+					     AR0234_EXPOSURE_MIN, exposure_max,
 					     AR0234_EXPOSURE_STEP,
-					     AR0234_EXPOSURE_MIN);
+					     exposure_max);
 
 	v4l2_ctrl_new_std(ctrl_hdlr, &ar0234_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
 			  AR0234_ANA_GAIN_MIN, AR0234_ANA_GAIN_MAX,
@@ -1344,17 +1249,10 @@ static int ar0234_init_controls(struct ar0234 *ar0234)
 
 	ar0234->sd.ctrl_handler = ctrl_hdlr;
 
-	mutex_lock(&ar0234->mutex);
-
-	ar0234_set_framing_limits(ar0234);
-
-	mutex_unlock(&ar0234->mutex);
-
 	return 0;
 
 error:
 	v4l2_ctrl_handler_free(ctrl_hdlr);
-	mutex_destroy(&ar0234->mutex);
 
 	return ret;
 }
@@ -1362,7 +1260,6 @@ error:
 static void ar0234_free_controls(struct ar0234 *ar0234)
 {
 	v4l2_ctrl_handler_free(ar0234->sd.ctrl_handler);
-	mutex_destroy(&ar0234->mutex);
 }
 
 static int ar0234_parse_hw_config(struct ar0234 *ar0234)
@@ -1543,9 +1440,6 @@ static int ar0234_probe(struct i2c_client *client)
 		goto error_power_off;
 	usleep_range(100, 110);
 
-	/* Initialize default format */
-	ar0234_set_default_format(ar0234);
-
 	ret = ar0234_init_controls(ar0234);
 	if (ret)
 		goto error_power_off;
@@ -1566,11 +1460,19 @@ static int ar0234_probe(struct i2c_client *client)
 		goto error_handler_free;
 	}
 
+	ar0234->sd.state_lock = ar0234->ctrl_handler.lock;
+	ret = v4l2_subdev_init_finalize(&ar0234->sd);
+	if (ret) {
+		dev_err(ar0234->dev, "failed to finalize subdev init: %d\n",
+			ret);
+		goto error_media_entity;
+	}
+
 	ret = v4l2_async_register_subdev_sensor(&ar0234->sd);
 	if (ret < 0) {
 		dev_err(ar0234->dev,
 			"failed to register sensor sub-device: %d\n", ret);
-		goto error_media_entity;
+		goto error_subdev_cleanup;
 	}
 
 	/*
@@ -1582,6 +1484,9 @@ static int ar0234_probe(struct i2c_client *client)
 	pm_runtime_put_autosuspend(ar0234->dev);
 
 	return 0;
+
+error_subdev_cleanup:
+	v4l2_subdev_cleanup(&ar0234->sd);
 
 error_media_entity:
 	media_entity_cleanup(&ar0234->sd.entity);
@@ -1603,6 +1508,7 @@ static void ar0234_remove(struct i2c_client *client)
 	struct ar0234 *ar0234 = to_ar0234(sd);
 
 	v4l2_async_unregister_subdev(sd);
+	v4l2_subdev_cleanup(sd);
 	media_entity_cleanup(&sd->entity);
 	ar0234_free_controls(ar0234);
 
