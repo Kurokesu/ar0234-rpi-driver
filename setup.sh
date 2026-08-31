@@ -36,9 +36,18 @@ if ! command -v dkms >/dev/null 2>&1; then
 fi
 
 # Remove DKMS registrations matching sensor name, sweep their source trees
-dkms status 2>/dev/null | sed 's/[,:].*//' | sort -u | while read -r ENTRY; do
+ENTRIES=$(dkms status 2>/dev/null | sed 's/[,:].*//' | sort -u)
+
+for ENTRY in $ENTRIES; do
 	case "${ENTRY%%/*}" in
 	*"$SENSOR"*)
+		# apt-owned installs are apt's to remove
+		if dpkg -S "/usr/src/${ENTRY%%/*}-${ENTRY#*/}" >/dev/null 2>&1; then
+			echo "Error: ${ENTRY%%/*} is installed from apt. Remove it first:" >&2
+			echo "sudo apt remove ${ENTRY%%/*}" >&2
+			exit 1
+		fi
+
 		print DKMS "remove $ENTRY"
 		if OUT=$(dkms remove "$ENTRY" --all 2>&1); then
 			# dkms remove only deregisters, source tree is installer's to clean
@@ -54,6 +63,13 @@ dkms status 2>/dev/null | sed 's/[,:].*//' | sort -u | while read -r ENTRY; do
 		;;
 	esac
 done
+
+# A half-installed package can own source tree with no dkms registration
+if dpkg -S "$DKMS_SRC" >/dev/null 2>&1; then
+	echo "Error: $DKMS_SRC belongs to an apt package. Remove it first:" >&2
+	echo "sudo apt remove $PACKAGE_NAME" >&2
+	exit 1
+fi
 
 # Copy source to DKMS tree
 print COPY "driver source -> $DKMS_SRC"
