@@ -746,7 +746,7 @@ static void ar0234_set_framing_limits(struct ar0234 *ar0234,
 	/* Setting this will adjust the exposure limits as well */
 	__v4l2_ctrl_s_ctrl(ar0234->vblank, AR0234_VBLANK_MIN);
 
-	/* Virtual, negative on wide modes, keeps width + hblank at true line length */
+	/* Virtual, negative, keeps width + hblank at true line length */
 	hblank = AR0234_LINE_LENGTH_PCK_DEF - mode->width;
 	__v4l2_ctrl_modify_range(ar0234->hblank, hblank, hblank, 1, hblank);
 }
