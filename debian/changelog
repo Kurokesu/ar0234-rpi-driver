@@ -1,3 +1,18 @@
+ar0234-rpi-dkms (0.1.2-1) unstable; urgency=medium
+
+  * Convert format, crop and blanking to V4L2 subdev state model.
+    TRY state is seeded on open and reports real mode geometry rather
+    than zeros.
+  * Report package version through module version field, so modinfo
+    and dkms status agree.
+  * Build overlay in a temporary directory during DKMS post install,
+    leaving no stray build tree behind.
+  * Add device-tree-compiler dependency since post install builds
+    overlay with dtc.
+  * d/rules: Name both remedies in version drift error.
+
+ -- Danius Kalvaitis <danius@kurokesu.com>  Tue, 01 Sep 2026 22:55:33 +0300
+
 ar0234-rpi-dkms (0.1.1-1) unstable; urgency=medium
 
   * Move 1080p crop 60 pixel offset from left to top.
