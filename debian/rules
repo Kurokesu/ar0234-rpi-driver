@@ -18,7 +18,7 @@ override_dh_install:
 		if [ "$${DRIFT_GUARD:-}" = warn ]; then \
 			echo "WARNING: dkms.conf PACKAGE_VERSION ($(DKMS_VERSION)) does not map to changelog upstream ($(DEB_VERSION_UPSTREAM)). Mergeable, blocks release until changelog catches up." >&2; \
 		else \
-			echo "ERROR: dkms.conf PACKAGE_VERSION ($(DKMS_VERSION)) does not map to changelog upstream ($(DEB_VERSION_UPSTREAM)). Bump dkms.conf on main to match debian/changelog." >&2; \
+			echo "ERROR: dkms.conf PACKAGE_VERSION ($(DKMS_VERSION)) does not map to changelog upstream ($(DEB_VERSION_UPSTREAM)). Open a matching entry with release.sh --prepare, or fix dkms.conf on main." >&2; \
 			exit 1; \
 		fi; \
 	fi
