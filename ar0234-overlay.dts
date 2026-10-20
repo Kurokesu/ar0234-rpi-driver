@@ -39,7 +39,7 @@
 		target = <&cam_endpoint>;
 		__dormant__ {
 			data-lanes = <1 2 3 4>;
-		};		
+		};
 	};
 
 	fragment@5 {
