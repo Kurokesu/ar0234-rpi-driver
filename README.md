@@ -9,6 +9,7 @@
 
 Raspberry Pi kernel driver for Onsemi AR0234, a 2.3 MP global shutter 1/2.6" CMOS sensor.
 
+- Color and monochrome sensor support
 - 2-lane and 4-lane MIPI CSI-2 (up to 900 Mbps/lane)
 - 8-bit and 10-bit RAW output
 - 1920×1200 @ 120 fps (full resolution)
@@ -116,7 +117,7 @@ rpicam-still -o test.jpg
 `ar0234` overlay supports comma-separated options to override defaults:
 
 | option | description | default |
-|--------|-------------|----------|
+|--------|-------------|---------|
 | [`cam0`](#cam0) | Use cam0 port instead of cam1 | cam1 |
 | [`4lane`](#4lane) | Use 4-lane MIPI CSI-2 (if wired) | 2 lanes |
 | [`link-frequency=<Hz>`](#link-frequency) | Set MIPI CSI-2 link frequency (Hz) | 450000000 |
